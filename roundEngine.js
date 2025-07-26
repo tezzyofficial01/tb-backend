@@ -33,10 +33,12 @@ async function runOneRound() {
     },
   };
 
+  const BASE_URL = "https://tb-backend-tnab.onrender.com";
+
   // 🔒 LOCK WINNER after 10 sec
   await new Promise(resolve => setTimeout(resolve, 10000));
   try {
-    await axios.post(`${process.env.BACKEND_URL}/api/bets/lock-winner`, { round }, headers);
+    await axios.post(`${BASE_URL}/api/bets/lock-winner`, { round }, headers);
     console.log(`🔒 Winner locked for round ${round}`);
   } catch (err) {
     console.error('❌ Lock Winner Error:', err.response?.data || err.message);
@@ -45,7 +47,7 @@ async function runOneRound() {
   // 📢 ANNOUNCE WINNER after 25 sec (total 35s)
   await new Promise(resolve => setTimeout(resolve, 25000));
   try {
-    await axios.post(`${process.env.BACKEND_URL}/api/bets/announce-winner`, { round }, headers);
+    await axios.post(`${BASE_URL}/api/bets/announce-winner`, { round }, headers);
     console.log(`📢 Winner announced for round ${round}`);
   } catch (err) {
     console.error('❌ Announce Winner Error:', err.response?.data || err.message);
@@ -54,7 +56,7 @@ async function runOneRound() {
   // 💰 PAYOUT after 5 sec (total 40s)
   await new Promise(resolve => setTimeout(resolve, 5000));
   try {
-    await axios.post(`${process.env.BACKEND_URL}/api/bets/distribute-payouts`, { round }, headers);
+    await axios.post(`${BASE_URL}/api/bets/distribute-payouts`, { round }, headers);
     console.log(`💰 Payout done for round ${round}`);
   } catch (err) {
     console.error('❌ Payout Error:', err.response?.data || err.message);
