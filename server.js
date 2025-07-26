@@ -78,8 +78,8 @@ io.on('connection', (socket) => {
 app.get('/', (req, res) => res.send('Server is up and running!'));
 
 // ✅ Auto-Engine Start (sync se)
-const startGameEngine = require('./roundEngine');
-startGameEngine();
+// const startGameEngine = require('./roundEngine');
+// startGameEngine();
 
 // ✅ Start Server
 const PORT = process.env.PORT || 5000;
