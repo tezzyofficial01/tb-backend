@@ -3,7 +3,7 @@ const Winner = require('../models/Winner');
 const User = require('../models/User');
 const LastWins = require('../models/LastWins');
 
-// Utility: Last 10 win maintain (reuse in payout/announce)
+// ========== Maintain Last 10 Wins ==========
 async function addLastWin(choice, round) {
   let doc = await LastWins.findOne();
   if (!doc) doc = await LastWins.create({ wins: [] });
@@ -22,7 +22,7 @@ async function getLastWinsController(req, res) {
   }
 }
 
-// Admin sets manual winner for round
+// ========== Admin sets manual winner ==========
 async function setManualWinner(req, res) {
   try {
     const { choice, round } = req.body;
@@ -40,7 +40,7 @@ async function setManualWinner(req, res) {
   }
 }
 
-// LOCK/Auto-winner (only if admin hasn't set)
+// ========== Lock Winner (Auto) ==========
 async function lockWinner(req, res) {
   try {
     const { round } = req.body;
@@ -58,7 +58,7 @@ async function lockWinner(req, res) {
     if (!bets.length) {
       const IMAGE_LIST = [
         'umbrella', 'football', 'sun', 'diya', 'cow', 'bucket',
-        'kite', 'spinningTop', 'rose', 'butterfly', 'pigeon', 'rabbit'
+        'kite', 'spinningtop', 'rose', 'butterfly', 'pigeon', 'rabbit'
       ];
       choice = IMAGE_LIST[Math.floor(Math.random() * IMAGE_LIST.length)];
     } else {
@@ -82,7 +82,7 @@ async function lockWinner(req, res) {
   }
 }
 
-// Announce winner for round (timer=5) + auto payout backend se
+// ========== Announce Winner + Always Trigger Payout ==========
 async function announceWinner(req, res) {
   try {
     const { round } = req.body;
@@ -98,7 +98,7 @@ async function announceWinner(req, res) {
       if (!bets.length) {
         const IMAGE_LIST = [
           'umbrella', 'football', 'sun', 'diya', 'cow', 'bucket',
-          'kite', 'spinningTop', 'rose', 'butterfly', 'pigeon', 'rabbit'
+          'kite', 'spinningtop', 'rose', 'butterfly', 'pigeon', 'rabbit'
         ];
         choice = IMAGE_LIST[Math.floor(Math.random() * IMAGE_LIST.length)];
       } else {
@@ -121,7 +121,7 @@ async function announceWinner(req, res) {
     await addLastWin(choice, round);
     global.io.emit('winner-announced', { round, choice });
 
-    // 🟢 Trigger backend payout automatically (no frontend dependency)
+    // ✅ Payout should always run
     setTimeout(() => {
       distributePayouts(
         { body: { round } },
@@ -136,7 +136,7 @@ async function announceWinner(req, res) {
   }
 }
 
-// Payout logic (backend safe)
+// ========== Payout Logic ==========
 async function distributePayouts(req, res) {
   try {
     const { round } = req.body;
@@ -159,7 +159,7 @@ async function distributePayouts(req, res) {
       if (!bets.length) {
         const IMAGE_LIST = [
           'umbrella', 'football', 'sun', 'diya', 'cow', 'bucket',
-          'kite', 'spinningTop', 'rose', 'butterfly', 'pigeon', 'rabbit'
+          'kite', 'spinningtop', 'rose', 'butterfly', 'pigeon', 'rabbit'
         ];
         choice = IMAGE_LIST[Math.floor(Math.random() * IMAGE_LIST.length)];
       } else {
@@ -172,10 +172,9 @@ async function distributePayouts(req, res) {
         choice = lowestChoices[Math.floor(Math.random() * lowestChoices.length)];
       }
       await Winner.findOneAndUpdate({ round }, { choice }, { new: true });
-      await addLastWin(choice, round);
-    } else {
-      await addLastWin(choice, round);
     }
+
+    await addLastWin(choice, round);
 
     const allBets = await Bet.find({ round });
     const winningBets = allBets.filter(b => b.choice === choice);
@@ -214,6 +213,7 @@ async function distributePayouts(req, res) {
   }
 }
 
+// ========== Exports ==========
 module.exports = {
   setManualWinner,
   lockWinner,
