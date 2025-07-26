@@ -8,23 +8,25 @@ const mongoose = require('mongoose');
 const http = require('http');
 const { Server } = require('socket.io');
 
-// Create app and HTTP server
 const app = express();
 const server = http.createServer(app);
 
-// Initialize Socket.io with proper CORS for React frontend
+// ✅ Safe origin handling
+const allowedOrigins = process.env.ALLOWED_ORIGINS
+  ? process.env.ALLOWED_ORIGINS.split(',')
+  : ['http://localhost:3000'];
+
 const io = new Server(server, {
   cors: {
-    origin: process.env.ALLOWED_ORIGINS.split(','), // ["http://localhost:3000"]
+    origin: allowedOrigins,
     methods: ["GET", "POST"],
     credentials: true
   }
 });
 
-// Make io globally available
 global.io = io;
 
-// Import all routes
+// ✅ Route imports
 const adminRoutes      = require('./routes/admin');
 const authRoutes       = require('./routes/auth');
 const userRoutes       = require('./routes/users');
@@ -35,16 +37,16 @@ const withdrawalRoutes = require('./routes/withdrawalRoutes');
 const settingsRoutes   = require('./routes/settings');
 const spinRoutes       = require('./routes/spin');
 
-// Middleware
+// ✅ Middleware
 app.use(helmet());
 app.use(express.json());
 app.use(cors({
-  origin: process.env.ALLOWED_ORIGINS.split(','),
+  origin: allowedOrigins,
   credentials: true
 }));
-// app.use(rateLimit({ windowMs: 60 * 1000, max: 100 })); // optional rate limit
+// app.use(rateLimit({ windowMs: 60 * 1000, max: 100 })); // Enable for abuse prevention
 
-// Mount routes
+// ✅ Route Mounting
 app.use('/api/auth',        authRoutes);
 app.use('/api/users',       userRoutes);
 app.use('/api/bets',        betsRoutes);
@@ -55,13 +57,16 @@ app.use('/api/admin',       adminRoutes);
 app.use('/api/settings',    settingsRoutes);
 app.use('/api/spin',        spinRoutes);
 
-// MongoDB Connect
+// ✅ MongoDB Connect
 mongoose
   .connect(process.env.MONGODB_URI)
   .then(() => console.log('✅ MongoDB connected'))
-  .catch(err => console.error('❌ MongoDB error:', err));
+  .catch(err => {
+    console.error('❌ MongoDB error:', err);
+    process.exit(1);
+  });
 
-// Socket.IO listener
+// ✅ Socket.IO connection
 io.on('connection', (socket) => {
   console.log('🟢 Client connected (socket.id):', socket.id);
   socket.on('disconnect', (reason) => {
@@ -69,13 +74,13 @@ io.on('connection', (socket) => {
   });
 });
 
-// Health check
+// ✅ Health Check
 app.get('/', (req, res) => res.send('Server is up and running!'));
 
-// ✅ Auto-Game Engine Import & Start
+// ✅ Auto-Engine Start (sync se)
 const startGameEngine = require('./roundEngine');
-startGameEngine(); // 🔁 Auto round/payout manager
+startGameEngine();
 
-// Start Server
+// ✅ Start Server
 const PORT = process.env.PORT || 5000;
 server.listen(PORT, () => console.log(`🚀 Server listening on port ${PORT}`));
