@@ -1,73 +1,73 @@
-// engine.js
-
 const axios = require('axios');
 const mongoose = require('mongoose');
-const Winner = require('./models/Winner'); // ✅ Correct path to Winner model
-require('dotenv').config(); // ✅ Load .env variables
+const Winner = require('./models/Winner');
+require('dotenv').config();
 
-let round = 1; // Will be updated from DB
+let round = 1;
 
-// 🔰 STEP 1: Get latest round from DB before engine starts
+// ✅ STEP 1: Connect to DB and get last round
 async function getInitialRound() {
   try {
     await mongoose.connect(process.env.MONGODB_URI, {
       useNewUrlParser: true,
-      useUnifiedTopology: true
+      useUnifiedTopology: true,
     });
-    const latestWinner = await Winner.findOne().sort({ round: -1 });
 
-    if (latestWinner && latestWinner.round) {
-      round = latestWinner.round + 1;
-      console.log(`🟢 Last round was ${latestWinner.round}, starting from round ${round}`);
-    } else {
-      round = 1;
-      console.log(`ℹ️ No previous round found. Starting from round 1`);
-    }
+    const latestWinner = await Winner.findOne().sort({ round: -1 });
+    round = latestWinner ? latestWinner.round + 1 : 1;
+
+    console.log(`🚀 Starting from round ${round}`);
   } catch (err) {
-    console.error('❌ DB Connect / Round Fetch Error:', err.message);
-    process.exit(1); // ⛔ Stop engine if DB sync fails
+    console.error('❌ DB Connect Error:', err.message);
+    process.exit(1);
   }
 }
 
-// 🔁 STEP 2: Engine Loop that runs every 40 seconds
-function startGameEngine() {
-  setInterval(() => {
-    console.log(`⏱ ROUND ${round} started`);
+// ✅ STEP 2: One round loop with delay chaining
+async function runOneRound() {
+  console.log(`⏱️ ROUND ${round} started`);
 
-    const headers = {
-      headers: {
-        Authorization: `Bearer ${process.env.ENGINE_JWT}`
-      }
-    };
+  const headers = {
+    headers: {
+      Authorization: `Bearer ${process.env.ENGINE_JWT}`,
+    },
+  };
 
-    // 🔒 LOCK at 10s
-    setTimeout(() => {
-      axios.post(`${process.env.BACKEND_URL}/api/bets/lock-winner`, { round }, headers)
-        .then(() => console.log(`🔒 Winner locked for round ${round}`))
-        .catch(err => console.error('❌ Lock Winner Error:', err.response?.data || err.message));
-    }, 10000);
+  // 🔒 LOCK WINNER after 10 sec
+  await new Promise(resolve => setTimeout(resolve, 10000));
+  try {
+    await axios.post(`${process.env.BACKEND_URL}/api/bets/lock-winner`, { round }, headers);
+    console.log(`🔒 Winner locked for round ${round}`);
+  } catch (err) {
+    console.error('❌ Lock Winner Error:', err.response?.data || err.message);
+  }
 
-    // 📢 ANNOUNCE at 35s
-    setTimeout(() => {
-      axios.post(`${process.env.BACKEND_URL}/api/bets/announce-winner`, { round }, headers)
-        .then(() => console.log(`📢 Winner announced for round ${round}`))
-        .catch(err => console.error('❌ Announce Winner Error:', err.response?.data || err.message));
-    }, 35000);
+  // 📢 ANNOUNCE WINNER after 25 sec (total 35s)
+  await new Promise(resolve => setTimeout(resolve, 25000));
+  try {
+    await axios.post(`${process.env.BACKEND_URL}/api/bets/announce-winner`, { round }, headers);
+    console.log(`📢 Winner announced for round ${round}`);
+  } catch (err) {
+    console.error('❌ Announce Winner Error:', err.response?.data || err.message);
+  }
 
-    // 💰 PAYOUT at 40s + round++
-    setTimeout(() => {
-      axios.post(`${process.env.BACKEND_URL}/api/bets/distribute-payouts`, { round }, headers)
-        .then(() => console.log(`💰 Payout done for round ${round}`))
-        .catch(err => console.error('❌ Payout Error:', err.response?.data || err.message));
+  // 💰 PAYOUT after 5 sec (total 40s)
+  await new Promise(resolve => setTimeout(resolve, 5000));
+  try {
+    await axios.post(`${process.env.BACKEND_URL}/api/bets/distribute-payouts`, { round }, headers);
+    console.log(`💰 Payout done for round ${round}`);
+  } catch (err) {
+    console.error('❌ Payout Error:', err.response?.data || err.message);
+  }
 
-      round += 1; // ➕ NEXT ROUND
-    }, 40000);
+  round += 1;
 
-  }, 40000); // 🔁 Repeat every 40 seconds
+  // 🔁 Call next round
+  runOneRound();
 }
 
-// 🔃 STEP 3: INIT
+// ✅ STEP 3: Start Engine
 module.exports = async function startSyncedGameEngine() {
   await getInitialRound();
-  startGameEngine();
+  runOneRound(); // Start first round
 };
