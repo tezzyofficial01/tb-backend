@@ -1,6 +1,7 @@
 const Bet = require('../models/Bet');
 const User = require('../models/User');
 const FakeLeaderboard = require('../models/FakeLeaderboard');
+const refreshFakeLeaderboard = require('../utils/refreshFakeLeaderboard'); // 👈 added
 
 function maskEmail(email) {
   const [name, domain] = email.split('@');
@@ -10,6 +11,9 @@ function maskEmail(email) {
 
 exports.getWeeklyLeaderboard = async (req, res) => {
   try {
+    // 👇 Every time user loads leaderboard, refresh fake data
+    await refreshFakeLeaderboard();
+
     // Get real user leaderboard from bets
     const realData = await Bet.aggregate([
       {
