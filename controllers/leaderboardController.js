@@ -1,7 +1,6 @@
 const Bet = require('../models/Bet');
-const User = require('../models/User');
 const FakeLeaderboard = require('../models/FakeLeaderboard');
-const refreshFakeLeaderboard = require('../utils/refreshFakeLeaderboard'); // 👈 added
+const refreshFakeLeaderboard = require('../utils/refreshFakeLeaderboard');
 
 function maskEmail(email) {
   const [name, domain] = email.split('@');
@@ -11,10 +10,10 @@ function maskEmail(email) {
 
 exports.getWeeklyLeaderboard = async (req, res) => {
   try {
-    // 👇 Every time user loads leaderboard, refresh fake data
+    // 👇 Refresh fake data on each load
     await refreshFakeLeaderboard();
 
-    // Get real user leaderboard from bets
+    // ✅ Aggregate real user data + join with User email in one query
     const realData = await Bet.aggregate([
       {
         $group: {
@@ -23,30 +22,38 @@ exports.getWeeklyLeaderboard = async (req, res) => {
           totalWin: { $sum: '$wonAmount' }
         }
       },
+      {
+        $lookup: {
+          from: 'users',
+          localField: '_id',
+          foreignField: '_id',
+          as: 'user'
+        }
+      },
+      { $unwind: '$user' },
+      {
+        $project: {
+          email: '$user.email',
+          totalBet: 1,
+          totalWin: 1
+        }
+      },
       { $sort: { totalWin: -1 } },
       { $limit: 100 }
     ]);
 
-    // Add masked email to each
-    const formattedReal = await Promise.all(
-      realData.map(async (entry) => {
-        const user = await User.findById(entry._id);
-        if (!user || !user.email) return null;
-        return {
-          email: maskEmail(user.email),
-          totalBet: entry.totalBet,
-          totalWin: entry.totalWin
-        };
-      })
-    );
+    // ✅ Format with masked emails
+    const realOnly = realData.map(entry => ({
+      email: maskEmail(entry.email),
+      totalBet: entry.totalBet,
+      totalWin: entry.totalWin
+    }));
 
-    const realOnly = formattedReal.filter(Boolean);
-
-    // Load fake data if less than 100
+    // ✅ Load fake data if less than 100
     const remaining = 100 - realOnly.length;
     const fakeData = await FakeLeaderboard.find().limit(remaining);
 
-    // Merge and sort by totalWin
+    // ✅ Combine and sort final result
     const combined = [...realOnly, ...fakeData].sort((a, b) => b.totalWin - a.totalWin);
 
     res.json({ leaderboard: combined });
