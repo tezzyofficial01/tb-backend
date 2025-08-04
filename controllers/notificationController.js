@@ -1,13 +1,15 @@
+// controllers/notificationController.js
 const Notification = require('../models/Notification');
 
-exports.sendNotification = async (userId, type, amount) => {
-  const capitalType = type.charAt(0).toUpperCase() + type.slice(1);
-  const message = `${capitalType} of ₹${amount} approved.`;
+exports.getNotificationsByUser = async (req, res) => {
+  const { userId } = req.params;
 
-  await Notification.create({
-    userId,
-    type,
-    amount,
-    message
-  });
+  try {
+    const trimmedUserId = userId.trim();  // ✅ remove \n or spaces
+    const notifications = await Notification.find({ userId: trimmedUserId }).sort({ createdAt: -1 });
+    res.json({ notifications });
+  } catch (error) {
+    console.error('Error fetching notifications:', error);
+    res.status(500).json({ message: 'Server error while fetching notifications' });
+  }
 };
