@@ -37,6 +37,7 @@ const withdrawalRoutes = require('./routes/withdrawalRoutes');
 const settingsRoutes   = require('./routes/settings');
 const spinRoutes       = require('./routes/spin');
 const notificationRoutes = require('./routes/notificationRoutes');
+const leaderboardRoutes = require('./routes/leaderboardRoutes');
 
 
 
@@ -60,6 +61,7 @@ app.use('/api/admin',       adminRoutes);
 app.use('/api/settings',    settingsRoutes);
 app.use('/api/spin',        spinRoutes);
 app.use('/api/notifications', notificationRoutes);
+app.use('/api/leaderboard', leaderboardRoutes);
 
 
 // ✅ MongoDB Connect
