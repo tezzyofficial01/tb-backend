@@ -9,11 +9,13 @@ function maskEmail(email) {
 }
 
 exports.getWeeklyLeaderboard = async (req, res) => {
+  console.time("Leaderboard API"); // 🔍 start timing
+
   try {
-    // 👇 Refresh fake data on each load
+    // ⚡ Fast refresh of fake data
     await refreshFakeLeaderboard();
 
-    // ✅ Aggregate real user data + join with User email in one query
+    // ✅ Aggregate real users + join with email
     const realData = await Bet.aggregate([
       {
         $group: {
@@ -42,18 +44,17 @@ exports.getWeeklyLeaderboard = async (req, res) => {
       { $limit: 100 }
     ]);
 
-    // ✅ Format with masked emails
+    // ✅ Masked real data
     const realOnly = realData.map(entry => ({
       email: maskEmail(entry.email),
       totalBet: entry.totalBet,
       totalWin: entry.totalWin
     }));
 
-    // ✅ Load fake data if less than 100
+    // ✅ Add fake data if needed
     const remaining = 100 - realOnly.length;
     const fakeData = await FakeLeaderboard.find().limit(remaining);
 
-    // ✅ Combine and sort final result
     const combined = [...realOnly, ...fakeData].sort((a, b) => b.totalWin - a.totalWin);
 
     res.json({ leaderboard: combined });
@@ -61,4 +62,6 @@ exports.getWeeklyLeaderboard = async (req, res) => {
     console.error('Leaderboard error:', err);
     res.status(500).json({ message: 'Server error' });
   }
+
+  console.timeEnd("Leaderboard API"); // 🔍 end timing
 };
