@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const Notification = require('../models/Notification');
 
-router.get('/notifications/:userId', async (req, res) => {
+router.get('/:userId', async (req, res) => {
   const { userId } = req.params;
   const notifications = await Notification.find({ userId })
     .sort({ createdAt: -1 })
