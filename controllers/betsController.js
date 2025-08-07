@@ -6,7 +6,9 @@ const User = require('../models/User');
 async function getCurrentRound(req, res) {
   try {
     let round = Number(req.query.round);
+    const userId = req.user?.id || req.user?._id;
     console.log('[GET_ROUND]', { round, userId });
+
     if (!round) {
       const now = new Date();
       const IST_OFFSET = 5.5 * 60 * 60 * 1000;
@@ -15,8 +17,8 @@ async function getCurrentRound(req, res) {
       const secondsPassed = Math.floor((nowIST - startOfDay) / 1000);
       round = Math.min(Math.floor(secondsPassed / 40) + 1, 2160);
     }
-    const userId = req.user?.id || req.user?._id;
-    const bets = await Bet.find({ round });
+
+    const bets = await Bet.find({ round, status: 'confirmed' });
     const totals = bets.reduce((acc, b) => {
       acc[b.choice] = (acc[b.choice] || 0) + b.amount;
       return acc;
@@ -42,12 +44,21 @@ async function placeBet(req, res) {
     const userId = req.user.id || req.user._id;
     const { choice, amount, round } = req.body;
     console.log('[BET]', { userId, round, choice, amount });
+
     if (!round || typeof round !== 'number' || round < 1 || round > 2160) {
       return res.status(400).json({ message: 'Invalid round' });
     }
     if (amount <= 0) {
       return res.status(400).json({ message: 'Invalid bet amount' });
     }
+
+    // Check duplicate bet
+    const existingBet = await Bet.findOne({ user: userId, round, choice, status: 'confirmed' });
+    if (existingBet) {
+      return res.status(409).json({ message: 'Already placed bet on this image' });
+    }
+
+    // Deduct balance
     const updatedUser = await User.findOneAndUpdate(
       { _id: userId, balance: { $gte: amount } },
       { $inc: { balance: -amount }, $set: { lastActive: new Date() } },
@@ -56,12 +67,20 @@ async function placeBet(req, res) {
     if (!updatedUser) {
       return res.status(400).json({ message: 'Insufficient balance' });
     }
+
+    // Create bet with status = pending
     const sessionId = Math.floor((round - 1) / 2160) + 1;
-    const bet = new Bet({ user: userId, round, choice, amount, sessionId });
+    const bet = new Bet({ user: userId, round, choice, amount, sessionId, status: 'pending' });
     await bet.save();
+
+    // Mark as confirmed
+    bet.status = 'confirmed';
+    await bet.save();
+
     global.io.emit('bet-placed', { choice, amount, round });
     return res.status(201).json({ message: 'Bet placed', bet });
   } catch (err) {
+    console.error('placeBet error:', err);
     return res.status(500).json({ message: err.message || 'Server error' });
   }
 }
@@ -75,15 +94,19 @@ async function myBetHistory(req, res) {
     const nowIST = new Date(now.getTime() + IST_OFFSET);
     const startOfDay = new Date(nowIST.getFullYear(), nowIST.getMonth(), nowIST.getDate(), 0, 0, 0);
     const endOfDay = new Date(nowIST.getFullYear(), nowIST.getMonth(), nowIST.getDate(), 23, 59, 59);
+
     const bets = await Bet.find({
       user: userId,
-      createdAt: { $gte: startOfDay, $lte: endOfDay }
+      createdAt: { $gte: startOfDay, $lte: endOfDay },
+      status: 'confirmed'
     });
+
     const roundNumbers = [...new Set(bets.map(bet => bet.round))];
-    const winners = await Winner.find({ round: { $in: roundNumbers } })
-      .select('round choice -_id').lean();
+    const winners = await Winner.find({ round: { $in: roundNumbers } }).select('round choice -_id').lean();
+
     const roundToWinner = {};
     winners.forEach(w => { roundToWinner[w.round] = w.choice; });
+
     const roundMap = {};
     bets.forEach(bet => {
       if (!roundMap[bet.round]) {
@@ -94,6 +117,7 @@ async function myBetHistory(req, res) {
         roundMap[bet.round].winAmount += bet.payout;
       }
     });
+
     const history = Object.values(roundMap)
       .sort((a, b) => b.round - a.round)
       .map(row => ({
@@ -102,8 +126,10 @@ async function myBetHistory(req, res) {
         winner: row.winner,
         winAmount: row.winAmount
       }));
+
     res.json({ history });
   } catch (err) {
+    console.error('myBetHistory error:', err);
     res.status(500).json({ message: 'Server error' });
   }
 }
@@ -113,21 +139,27 @@ async function getRoundBetsSummary(req, res) {
   try {
     const round = Number(req.query.round);
     if (!round) return res.status(400).json({ message: 'Invalid round' });
-    const bets = await Bet.find({ round });
+
+    const bets = await Bet.find({ round, status: 'confirmed' });
+
     const totals = {};
     bets.forEach(b => {
       totals[b.choice] = (totals[b.choice] || 0) + b.amount;
     });
+
     const IMAGE_LIST = [
       'umbrella', 'football', 'sun', 'diya', 'cow', 'bucket',
       'kite', 'spinningTop', 'rose', 'butterfly', 'pigeon', 'rabbit'
     ];
+
     const result = {};
     IMAGE_LIST.forEach(img => {
       result[img] = totals[img] || 0;
     });
+
     res.json({ round, bets: result });
   } catch (err) {
+    console.error('getRoundBetsSummary error:', err);
     res.status(500).json({ message: 'Server error' });
   }
 }
