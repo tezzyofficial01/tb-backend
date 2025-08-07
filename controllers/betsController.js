@@ -38,7 +38,7 @@ async function getCurrentRound(req, res) {
   }
 }
 
-// PLACE BET
+// PLACE BET (NO DUPLICATE CHECK)
 async function placeBet(req, res) {
   try {
     const userId = req.user.id || req.user._id;
@@ -52,12 +52,6 @@ async function placeBet(req, res) {
       return res.status(400).json({ message: 'Invalid bet amount' });
     }
 
-    // Check duplicate bet
-    const existingBet = await Bet.findOne({ user: userId, round, choice, status: 'confirmed' });
-    if (existingBet) {
-      return res.status(409).json({ message: 'Already placed bet on this image' });
-    }
-
     // Deduct balance
     const updatedUser = await User.findOneAndUpdate(
       { _id: userId, balance: { $gte: amount } },
@@ -68,13 +62,8 @@ async function placeBet(req, res) {
       return res.status(400).json({ message: 'Insufficient balance' });
     }
 
-    // Create bet with status = pending
     const sessionId = Math.floor((round - 1) / 2160) + 1;
-    const bet = new Bet({ user: userId, round, choice, amount, sessionId, status: 'pending' });
-    await bet.save();
-
-    // Mark as confirmed
-    bet.status = 'confirmed';
+    const bet = new Bet({ user: userId, round, choice, amount, sessionId, status: 'confirmed' });
     await bet.save();
 
     global.io.emit('bet-placed', { choice, amount, round });
