@@ -31,6 +31,11 @@ const betSchema = new mongoose.Schema({
     type: Boolean,
     default: false
   },
+  status: {
+    type: String,
+    enum: ['pending', 'confirmed', 'failed'],
+    default: 'pending'
+  },
   createdAt: {
     type: Date,
     default: Date.now
