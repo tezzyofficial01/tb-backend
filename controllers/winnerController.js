@@ -45,21 +45,24 @@ async function lockWinner(req, res) {
   try {
     const { round } = req.body;
     console.log('[LOCK_WINNER]', { round, time: Date.now() });
+
     if (!round || typeof round !== 'number' || round < 1 || round > 2160) {
       return res.status(400).json({ message: 'Invalid round' });
     }
+
     let winDoc = await Winner.findOne({ round });
     if (winDoc && winDoc.choice) {
       return res.json({ alreadyLocked: true, choice: winDoc.choice });
     }
 
-    const bets = await Bet.find({ round });
+    const bets = await Bet.find({ round, status: 'confirmed' });
     let choice;
+    const IMAGE_LIST = [
+      'umbrella', 'football', 'sun', 'diya', 'cow', 'bucket',
+      'kite', 'spinningTop', 'rose', 'butterfly', 'pigeon', 'rabbit'
+    ];
+
     if (!bets.length) {
-      const IMAGE_LIST = [
-        'umbrella', 'football', 'sun', 'diya', 'cow', 'bucket',
-        'kite', 'spinningtop', 'rose', 'butterfly', 'pigeon', 'rabbit'
-      ];
       choice = IMAGE_LIST[Math.floor(Math.random() * IMAGE_LIST.length)];
     } else {
       const totals = {};
@@ -93,13 +96,14 @@ async function announceWinner(req, res) {
     let winDoc = await Winner.findOne({ round });
     let choice = winDoc ? winDoc.choice : null;
 
+    const IMAGE_LIST = [
+      'umbrella', 'football', 'sun', 'diya', 'cow', 'bucket',
+      'kite', 'spinningTop', 'rose', 'butterfly', 'pigeon', 'rabbit'
+    ];
+
     if (!choice) {
-      const bets = await Bet.find({ round });
+      const bets = await Bet.find({ round, status: 'confirmed' });
       if (!bets.length) {
-        const IMAGE_LIST = [
-          'umbrella', 'football', 'sun', 'diya', 'cow', 'bucket',
-          'kite', 'spinningtop', 'rose', 'butterfly', 'pigeon', 'rabbit'
-        ];
         choice = IMAGE_LIST[Math.floor(Math.random() * IMAGE_LIST.length)];
       } else {
         const totals = {};
@@ -121,7 +125,7 @@ async function announceWinner(req, res) {
     await addLastWin(choice, round);
     global.io.emit('winner-announced', { round, choice });
 
-    // ✅ Payout should always run
+    // ✅ Trigger payout
     setTimeout(() => {
       distributePayouts(
         { body: { round } },
@@ -154,13 +158,14 @@ async function distributePayouts(req, res) {
     }
 
     let choice = winDoc.choice;
+    const IMAGE_LIST = [
+      'umbrella', 'football', 'sun', 'diya', 'cow', 'bucket',
+      'kite', 'spinningTop', 'rose', 'butterfly', 'pigeon', 'rabbit'
+    ];
+
     if (!choice) {
-      const bets = await Bet.find({ round });
+      const bets = await Bet.find({ round, status: 'confirmed' });
       if (!bets.length) {
-        const IMAGE_LIST = [
-          'umbrella', 'football', 'sun', 'diya', 'cow', 'bucket',
-          'kite', 'spinningtop', 'rose', 'butterfly', 'pigeon', 'rabbit'
-        ];
         choice = IMAGE_LIST[Math.floor(Math.random() * IMAGE_LIST.length)];
       } else {
         const totals = {};
@@ -176,7 +181,7 @@ async function distributePayouts(req, res) {
 
     await addLastWin(choice, round);
 
-    const allBets = await Bet.find({ round });
+    const allBets = await Bet.find({ round, status: 'confirmed' });
     const winningBets = allBets.filter(b => b.choice === choice);
     const userTotalBets = {};
     for (const bet of winningBets) {
@@ -191,7 +196,7 @@ async function distributePayouts(req, res) {
     }
 
     for (const bet of winningBets) {
-      bet.payout = 0;
+      bet.payout = bet.amount * 10;
       bet.win = true;
       await bet.save();
     }
