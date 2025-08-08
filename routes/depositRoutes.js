@@ -4,16 +4,20 @@ const auth = require('../middlewares/authMiddleware');
 const {
   requestDeposit,
   getAllDeposits,
+  getPendingDeposits,
   updateDepositStatus
 } = require('../controllers/depositController');
 
-// User request deposit
+// User: Request deposit
 router.post('/', auth, requestDeposit);
 
-// Admin list all deposits
+// Admin: Get all deposits
 router.get('/', auth, getAllDeposits);
 
-// Admin update status
+// Admin: Get only pending deposits
+router.get('/pending', auth, getPendingDeposits);
+
+// Admin: Approve or reject deposit
 router.patch('/:id', auth, updateDepositStatus);
 
 module.exports = router;

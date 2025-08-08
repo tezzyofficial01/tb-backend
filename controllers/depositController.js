@@ -1,13 +1,15 @@
 const Deposit = require('../models/Deposit');
 const User = require('../models/User');
+const { sendNotification } = require('./notificationController'); // ✅ Notification
 
-// 1️⃣ User se deposit request lena
+// User se deposit request lena
 exports.requestDeposit = async (req, res) => {
   try {
     const { amount } = req.body;
     if (!amount || amount <= 0) {
       return res.status(400).json({ message: 'Invalid amount' });
     }
+
     const user = await User.findById(req.user.id);
     if (!user) return res.status(404).json({ message: 'User not found' });
 
@@ -31,7 +33,7 @@ exports.requestDeposit = async (req, res) => {
   }
 };
 
-// 2️⃣ Admin ke liye: saari deposits list karna
+// Admin: saare deposits
 exports.getAllDeposits = async (req, res) => {
   try {
     const deposits = await Deposit.find()
@@ -44,7 +46,20 @@ exports.getAllDeposits = async (req, res) => {
   }
 };
 
-// 3️⃣ Admin: deposit ka status update karna
+// ✅ Admin: sirf pending deposits (UI me dikhane ke liye)
+exports.getPendingDeposits = async (req, res) => {
+  try {
+    const deposits = await Deposit.find({ status: 'pending' })
+      .populate('user', 'email balance')
+      .sort({ createdAt: -1 });
+    res.json({ deposits });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: 'Server error' });
+  }
+};
+
+// Admin: deposit ka status update karna
 exports.updateDepositStatus = async (req, res) => {
   try {
     const { status } = req.body; // 'approved' ya 'rejected'
@@ -54,11 +69,18 @@ exports.updateDepositStatus = async (req, res) => {
     deposit.status = status;
     await deposit.save();
 
-    // Agar approved, to user balance update karo
     if (status === 'approved') {
       const user = await User.findById(deposit.user);
       user.balance += deposit.amount;
       await user.save();
+
+      // ✅ Notification to user
+      await sendNotification(user._id, `Your deposit of ₹${deposit.amount} has been approved.`);
+    }
+
+    if (status === 'rejected') {
+      const user = await User.findById(deposit.user);
+      await sendNotification(user._id, `Your deposit of ₹${deposit.amount} has been rejected.`);
     }
 
     global.io.emit('deposit-status-updated', deposit);
