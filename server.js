@@ -55,6 +55,11 @@ const settingsRoutes     = require('./routes/settings');
 const spinRoutes         = require('./routes/spin');
 const notificationRoutes = require('./routes/notificationRoutes');
 const leaderboardRoutes  = require('./routes/leaderboardRoutes');
+const publicStateRoutes = require('./routes/publicState');
+
+
+
+
 
 app.use('/api/auth',          authRoutes);
 app.use('/api/users',         userRoutes);
@@ -67,6 +72,7 @@ app.use('/api/settings',      settingsRoutes);
 app.use('/api/spin',          spinRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/leaderboard',   leaderboardRoutes);
+app.use('/api/public-state', publicStateRoutes);
 
 /* ---------- Health ---------- */
 app.get('/', (_req, res) => res.send('Server is up and running!'));
